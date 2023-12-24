@@ -20,7 +20,6 @@ class Task(Thread):
 
 
 
-
 class Message:
     def __init__(self, text, keyboard=None):
         self.__msg = None

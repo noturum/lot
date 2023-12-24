@@ -17,7 +17,6 @@ class User(Base):
     secret = Column(Integer)
     # mail = relationship("Mail")
 
-
 class Database():
     __inst__ = None
     def __new__(cls, *args, **kwargs):

@@ -19,4 +19,3 @@ a=Singl()
 def r():
     return 2
 
-
