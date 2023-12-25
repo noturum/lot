@@ -1,24 +1,53 @@
 import os.path
 from Strings import *
 from telebot import TeleBot
-from DbController import User, Database as db
+from DbController import User,Group, Database as db
 import logging
 import pickle
 from threading import Thread,Event
 logging.basicConfig(filename='/root/bot/error.log',
                     format='[%(asctime)s] => %(message)s',
                     level=logging.ERROR)
-
+import bs4,lxml,requests
 bot = TeleBot(API_KEY)
 
-class Task(Thread):
+
+class LinkScraber(Thread):
     def __init__(self):
+        
         super().__init__(daemon=True)
-    def run(self) -> None:
+
+    def run(self):
+        self.client.get(link)
         ...
 
 
 
+
+
+
+class TaskController(Thread):
+    __inst__ = None
+
+    def __new__(cls, *args, **kwargs):
+        if cls.__inst__:
+            return cls.__inst__
+        else:
+            cls.__inst__ = cls(*args, **kwargs)
+            return cls
+    def __init__(self):
+        self._tasks=[]
+    def add_task(self,func,*arg,name=None):
+
+        self._tasks.append(task:=(super().__init__(target=func,args=arg,name=name)))
+        task.start()
+    def stop(self,name):
+        for task in self._tasks:
+            if task.name==name and task.isAlive():
+                task.join()
+
+
+tasker=TaskController()
 
 class Message:
     def __init__(self, text, keyboard=None):
@@ -42,16 +71,15 @@ class Chat:
 
     def add_message(self, msg: Message):
         msg.send_message(self.__id)
-
-    def set_state(self, state):
-        self.__state = state
-
-    def get_state(self):
+    @property
+    def state(self):
         return self.__state
-
-    def get_id_chat(self):
+    @state.setter
+    def state(self, state):
+        self.__state = state
+    @property
+    def chat_id(self):
         return self.__id
-
 
 
 def init(message):

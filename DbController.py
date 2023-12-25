@@ -11,11 +11,18 @@ class User(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     chat_id = Column(Integer)
-    isWised = Column(Boolean, default=False)
-    isSanta = Column(Boolean, default=False)
     name = Column(String)
-    secret = Column(Integer)
     # mail = relationship("Mail")
+class Prof(Base):
+    __tablename__ = 'prof'
+    id = Column(Integer,primary_key=True, autoincrement=True)
+    message_id= Column(Integer)
+    text=Column(String)
+class Group(Base):
+    __tablename__ = 'group'
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    link = Column(String)
+    youtube_link= Column(String)
 
 class Database():
     __inst__ = None

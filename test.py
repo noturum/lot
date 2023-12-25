@@ -1,21 +1,16 @@
 class Singl:
-    __inst__=None
-    def __new__(cls, *args, **kwargs):
-        if cls.__inst__:
-            print('2')
-            return cls.__inst__
-        else:
-            print('1')
-            cls.__inst__=cls
-            return cls
-    def task(func):
-        def move():
-            for _ in range(10):
-                print(func())
-        return move
+    def __init__(self):
+        self.tasks=[]
+    def task(self,t):
+        def decorator(func):
+            def wrapper():
+                print(t)
+                return func()
+            return wrapper
+        return decorator
 a=Singl()
 
-@a.task
-def r():
+@a.task(20)
+def rr():
     return 2
-
+rr()
