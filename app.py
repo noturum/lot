@@ -1,23 +1,26 @@
 import os.path
 from Strings import *
 from telebot import TeleBot
-from DbController import User,Group, Database as db
+from DbController import User, Group, Database as db
 import logging
 import pickle
 import re
-from threading import Thread,Event
+from threading import Thread, Event
+
 logging.basicConfig(filename='/root/bot/error.log',
                     format='[%(asctime)s] => %(message)s',
                     level=logging.ERROR)
-import lxml,requests
+import lxml, requests
 from bs4 import BeautifulSoup as bs
+
 bot = TeleBot(API_KEY)
-from selenium.webdriver import Chrome,ChromeOptions,DesiredCapabilities
+from selenium.webdriver import Chrome, ChromeOptions, DesiredCapabilities
 from selenium.common import SessionNotCreatedException
 
+
 class LinkScraber(Thread):
-    MAIN='https://www.youtube.com'
-    LINK_THREDS='https://www.youtube.com/feed/trending?bp=6gQJRkVleHBsb3Jl'
+    MAIN = 'https://www.youtube.com'
+    LINK_THREDS = 'https://www.youtube.com/feed/trending?bp=6gQJRkVleHBsb3Jl'
     options = ChromeOptions()
     prefs = {"profile.managed_default_content_settings.images": 2}
     options.add_experimental_option("prefs", prefs)
@@ -26,10 +29,10 @@ class LinkScraber(Thread):
     caps["pageLoadStrategy"] = "none"
 
     def __init__(self, headless=False):
-        super().__init__(daemon=True)
+        super().__init__(daemon=False)
         self._driver = self._get_driver(headless)
         self._windows = {}
-        self.links=[]
+        self.links = []
 
     def _get_driver(self, headless: bool = False):
         if headless == True:
@@ -53,38 +56,36 @@ class LinkScraber(Thread):
         if tab_name:
             self._driver.switch_to.window(self._windows[tab_name])
         return self._driver.page_source
+
     def get_threds(self):
         self.load(self.LINK_THREDS)
-        soup = bs(self.get_text(), 'lxml')
+        soup = bs(self._get_text(), 'lxml')
         links = soup.find_all('a')
-        threds=[]
+        threds = []
         for link in links:
             if (hr := link.get('href')) and hr not in threds:
                 threds.append(hr)
         return threds
-    def _rem_dubl(self,lst):
-        for ind, i in enumerate(lst):
-            if lst.count(i) > 1:
-                lst.pop(ind)
 
-        super().__init__(daemon=True)
-    def _get_tg(self,url):
+    def _get_tg(self, url):
 
         try:
+            text = requests.get(url).text
+
             links = re.findall("https:\/\/t.me[\w@^\/]*",
-                           requests.get(url).text)
-            self._rem_dubl(links)
-            print(links)
-        except BaseException:
+                               text)
+            return links
+
+        except BaseException as e:
+            print(e)
             return None
+
     def run(self):
         for thred in self.get_threds():
-            self._get_tg(self.MAIN+thred)
-
-
-
-
-
+            if tg := self._get_tg(self.MAIN + thred):
+                for link in tg:
+                    if link not in self.links:
+                        self.links.append(link)
 
 
 class TaskController(Thread):
@@ -96,19 +97,23 @@ class TaskController(Thread):
         else:
             cls.__inst__ = cls(*args, **kwargs)
             return cls
-    def __init__(self):
-        self._tasks=[]
-    def add_task(self,func,*arg,name=None):
 
-        self._tasks.append(task:=(super().__init__(target=func,args=arg,name=name)))
+    def __init__(self):
+        self._tasks = []
+
+    def add_task(self, func, *arg, name=None):
+
+        self._tasks.append(task := (super().__init__(target=func, args=arg, name=name)))
         task.start()
-    def stop(self,name):
+
+    def stop(self, name):
         for task in self._tasks:
-            if task.name==name and task.isAlive():
+            if task.name == name and task.isAlive():
                 task.join()
 
 
-tasker=TaskController()
+tasker = TaskController()
+
 
 class Message:
     def __init__(self, text, keyboard=None):
@@ -118,7 +123,6 @@ class Message:
 
     def send_message(self, chat_id):
         self.__msg = bot.send_message(chat_id=chat_id, text=self.text, reply_markup=self.keyboard)
-
 
 
 class Chat:
@@ -132,12 +136,15 @@ class Chat:
 
     def add_message(self, msg: Message):
         msg.send_message(self.__id)
+
     @property
     def state(self):
         return self.__state
+
     @state.setter
     def state(self, state):
         self.__state = state
+
     @property
     def chat_id(self):
         return self.__id
@@ -154,11 +161,16 @@ chats = {}
 if os.path.exists('/root/bot/dump.pickle'):
     with open('/root/bot/dump.pickle', 'rb') as handle:
         chats = pickle.load(handle)
+
+
 def main():
     @bot.edited_message_handler(func=lambda message: True)
     def handler_function(message):
         ...
+
     bot.polling(none_stop=True)
+
+
 if __name__ == "__main__":
     try:
         main()

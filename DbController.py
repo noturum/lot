@@ -22,7 +22,7 @@ class Group(Base):
     __tablename__ = 'group'
     id = Column(Integer, primary_key=True, autoincrement=True)
     link = Column(String)
-    youtube_link= Column(String)
+    isChecked=Column(Boolean,default=False)
 
 class Database():
     __inst__ = None
