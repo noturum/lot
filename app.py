@@ -1,24 +1,33 @@
-import os.path
-from Strings import *
-from telebot import TeleBot
-from DbController import User, Group, Database as db
-import logging
-import pickle
-import re
-from threading import Thread, Event
+import os, logging, pickle, re, lxml, requests
 
-logging.basicConfig(filename='/root/bot/error.log',
+logging.basicConfig(filename='error.log',
                     format='[%(asctime)s] => %(message)s',
                     level=logging.ERROR)
-import lxml, requests
+from dotenv import load_dotenv
+
+load_dotenv()
+PHONE=os.getenv('PHONE')
+assert PHONE
+from telebot import TeleBot
+
+try:
+    from DbController import User, Group, Database as db
+    from Telephon import Client as client
+except AssertionError as e:
+    logging.error(e)
+    exit(1)
+from threading import Thread, Event
+
 from bs4 import BeautifulSoup as bs
 
-bot = TeleBot(API_KEY)
+BOT_API = os.getenv('BOT_API')
+assert BOT_API
+bot = TeleBot(BOT_API)
 from selenium.webdriver import Chrome, ChromeOptions, DesiredCapabilities
 from selenium.common import SessionNotCreatedException
 
 
-class LinkScraber(Thread):
+class LinkScraber():
     MAIN = 'https://www.youtube.com'
     LINK_THREDS = 'https://www.youtube.com/feed/trending?bp=6gQJRkVleHBsb3Jl'
     options = ChromeOptions()
@@ -86,31 +95,30 @@ class LinkScraber(Thread):
                 for link in tg:
                     if link not in self.links:
                         self.links.append(link)
+                        print(link)
 
 
-class TaskController(Thread):
+class TaskController:
     __inst__ = None
-
     def __new__(cls, *args, **kwargs):
-        if cls.__inst__:
-            return cls.__inst__
-        else:
-            cls.__inst__ = cls(*args, **kwargs)
-            return cls
+        _inst = None
+        def __new__(cls, *args, **kwargs):
+            if not isinstance(cls._inst, cls):
+                cls._instance = object.__new__(cls, *args, **kwargs)
+            return cls._instance
 
     def __init__(self):
         self._tasks = []
 
     def add_task(self, func, *arg, name=None):
 
-        self._tasks.append(task := (super().__init__(target=func, args=arg, name=name)))
+        self._tasks.append(task := (Thread.__init__(target=func, args=arg, name=name)))
         task.start()
 
     def stop(self, name):
         for task in self._tasks:
             if task.name == name and task.isAlive():
                 task.join()
-
 
 tasker = TaskController()
 
@@ -158,25 +166,30 @@ def init(message):
 
 
 chats = {}
-if os.path.exists('/root/bot/dump.pickle'):
-    with open('/root/bot/dump.pickle', 'rb') as handle:
+if os.path.exists('dump.pickle'):
+    with open('dump.pickle', 'rb') as handle:
         chats = pickle.load(handle)
 
 
 def main():
-    @bot.edited_message_handler(func=lambda message: True)
-    def handler_function(message):
-        ...
+    @bot.message_handler(content_types=['text'])
+    def text(message):
+        print(message.text)
 
+    _client = client(PHONE)
+    _client.start()
     bot.polling(none_stop=True)
 
 
 if __name__ == "__main__":
     try:
-        main()
+        # main()
+        LinkScraber().start()
     except Exception as e:
+
         bot.stop_polling()
+
         logging.error(e)
-        with open('/root/bot/dump.pickle', 'wb') as handle:
+        with open('dump.pickle', 'wb') as handle:
             pickle.dump(chats, handle)
         exit(1)

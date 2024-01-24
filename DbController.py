@@ -1,23 +1,26 @@
+import os
+
 from sqlalchemy import create_engine, Column, Integer, String, Boolean, ForeignKey, insert, delete, update
 from sqlalchemy.orm import Session, DeclarativeBase, relationship
-
-from Strings import DB
+DB = os.getenv('DB')
+assert DB, 'init db string'
 
 
 class Base(DeclarativeBase):
     ...
-class User(Base):
-    __tablename__ = 'users'
+class Links(Base):
+    __tablename__ = 'links'
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    chat_id = Column(Integer)
-    name = Column(String)
+    href = Column(String)
+    isVerified = Column(Boolean)
     # mail = relationship("Mail")
-class Prof(Base):
-    __tablename__ = 'prof'
+class Selected(Base):
+    __tablename__ = 'selected'
     id = Column(Integer,primary_key=True, autoincrement=True)
     message_id= Column(Integer)
-    text=Column(String)
+    peer_id = Column(Integer)
+    isforwarded= Column(Boolean)
 class Group(Base):
     __tablename__ = 'group'
     id = Column(Integer, primary_key=True, autoincrement=True)
