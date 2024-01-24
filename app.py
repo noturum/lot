@@ -91,7 +91,7 @@ class LinkScraber():
                 for link in tg:
                     if link not in self.links:
                         self.links.append(link)
-                        c_database.insert(Links,href=link)
+                        c_database.d.upsert(Links,'href','href',href=link)
 
 
 

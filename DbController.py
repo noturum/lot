@@ -1,6 +1,10 @@
 import os
+from dotenv import load_dotenv
+from sqlalchemy.dialects.postgresql import insert
 
-from sqlalchemy import create_engine, Column, Integer, String, Boolean, ForeignKey, insert, delete, update
+load_dotenv()
+
+from sqlalchemy import create_engine, Column, Integer, String, Boolean, ForeignKey, delete, update, text, select
 from sqlalchemy.orm import Session, DeclarativeBase, relationship
 DB = os.getenv('DB')
 assert DB, 'init db string'
@@ -12,7 +16,7 @@ class Links(Base):
     __tablename__ = 'links'
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    href = Column(String)
+    href = Column(String, unique=True)
     isVerified = Column(Boolean,default=False)
     # mail = relationship("Mail")
 class Selected(Base):
@@ -38,14 +42,23 @@ class Database():
     def __init__(self):
         self.__engine = create_engine(DB, echo=False)
         self.session = Session(self.__engine)
-
+    def upsert(self,table,uniq_col:str,set_col,**values):
+        ins = insert(table).values(**values)
+        ups = ins.on_conflict_do_update(
+        index_elements=[uniq_col],
+        set_={set_col: values.get(set_col)}
+    )
+        self.session.execute(ups)
+        self.session.commit()
     def insert(self, table, returning=None, **values):
+
         if returning:
             returns = self.session.execute(insert(table).values(**values).returning(returning)).fetchone()
             self.session.commit()
 
             return returns
         else:
+
             self.session.execute(insert(table).values(**values))
             self.session.commit()
 
