@@ -18,9 +18,8 @@ TELEGRAM_API_HASH = os.getenv('TELEGRAM_API_HASH')
 assert TELEGRAM_API_ID , 'TELEGRAM_API_ID not found'
 assert TELEGRAM_API_HASH , 'TELEGRAM_API_HASH not found'
 import asyncio
-class Client(Thread):
+class Client:
     def __init__(self, phone: str):
-        super().__init__(daemon=False)
         self._client = TelegramClient(session=phone, api_id=TELEGRAM_API_ID,
                                       api_hash=TELEGRAM_API_HASH, system_version="4.16.30-vxCUSTOM")
         self._phone=phone
@@ -52,7 +51,10 @@ class Client(Thread):
         if await self.is_login:
             async with self._client:
                 async for i in self._client.iter_dialogs():
-                    messages = await self._client.get_messages(i.entity,filter=InputMessagesFilterPinned)
+                    try:
+                        messages = await self._client.get_messages(i.entity,filter=InputMessagesFilterPinned)
+                    except:
+                        continue
                     for message in messages:
                         if len(re.findall(r'(.онкурс)|(.озыгрыш*)|(.частвоват.)',message.message)):
 
@@ -71,15 +73,6 @@ class Client(Thread):
         self._client = TelegramClient(session=self._phone, api_id=TELEGRAM_API_ID,
                                       api_hash=TELEGRAM_API_HASH, loop=self.loop, system_version="4.16.30-vxCUSTOM")
 
-        @self._client.on(events.NewMessage)
-        async def new(event):
-            print(event.raw_text)
-
-        self._client.start()
-
-        self._client.run_until_disconnected()
 
 
 
-a=Client(os.getenv('PHONE'))
-print(a.run_loop(a.test))

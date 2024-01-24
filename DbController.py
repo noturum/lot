@@ -13,7 +13,7 @@ class Links(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     href = Column(String)
-    isVerified = Column(Boolean)
+    isVerified = Column(Boolean,default=False)
     # mail = relationship("Mail")
 class Selected(Base):
     __tablename__ = 'selected'
@@ -30,15 +30,14 @@ class Group(Base):
 class Database():
     __inst__ = None
     def __new__(cls, *args, **kwargs):
-        if cls.__inst__:
-            return cls.__inst__
-        else:
+        if not cls.__inst__:
             Base.metadata.create_all(create_engine(DB, echo=False))
-            cls.__inst__ = cls
-            return cls
-    def __init__(self):
-        self.session = Session(self.__engine)
+            cls.__inst__ = super().__new__(cls)
+        return cls.__inst__
 
+    def __init__(self):
+        self.__engine = create_engine(DB, echo=False)
+        self.session = Session(self.__engine)
 
     def insert(self, table, returning=None, **values):
         if returning:
@@ -77,3 +76,5 @@ class Database():
             self.session.query(table).filter(*filter).delete()
             self.session.commit()
 
+if __name__ !="__main__":
+    c_database= Database()
