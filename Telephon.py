@@ -10,7 +10,7 @@ import re
 
 
 from telethon import TelegramClient,events
-from threading import Thread
+
 import os
 TELEGRAM_API_ID = os.getenv('TELEGRAM_API_ID')
 TELEGRAM_API_HASH = os.getenv('TELEGRAM_API_HASH')
@@ -59,11 +59,21 @@ class Client:
                         if len(re.findall(r'(.онкурс)|(.озыгрыш*)|(.частвоват.)',message.message)):
 
                             await self._client.forward_messages(5288842675,message.id,message.peer_id)
-    async def test(self):
+    async def test(self,list):
         if await self.is_login:
             async with self._client:
-                msgs = await self._client.get_messages('https://t.me/pospikasya', filter=InputMessagesFilterPinned)
-                print(msgs)
+                for tg in list:
+                    print(tg)
+                    try:
+                        messages = await self._client.get_messages(tg, filter=InputMessagesFilterPinned)
+                    except Exception as e:
+                        #todo: drop row with bad entity
+                        continue
+                    for message in messages:
+                        print(1)
+                        if len(re.findall(r'(.онкурс)|(.озыгрыш*)|(.частвоват.)', message.message)):
+                            await self._client.forward_messages(5288842675, message.id, message.peer_id)
+
     def run_loop(self,func,*args,**kwargs):
         return self._client.loop.run_until_complete(func(*args,**kwargs))
         ...

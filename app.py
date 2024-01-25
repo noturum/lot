@@ -1,5 +1,9 @@
+import asyncio
 import os, logging, pickle, re, lxml, requests
 import time
+
+import aiohttp
+
 from Tasks import c_task
 logging.basicConfig(filename='error.log',
                     format='[%(asctime)s] => %(message)s',
@@ -25,7 +29,7 @@ bot = TeleBot(BOT_API)
 from selenium.webdriver import Chrome, ChromeOptions, DesiredCapabilities
 from selenium.common import SessionNotCreatedException
 
-class LinkScraber():
+class LinkScraber:
     MAIN = 'https://www.youtube.com'
     LINK_THREDS = 'https://www.youtube.com/feed/trending?bp=6gQJRkVleHBsb3Jl'
     options = ChromeOptions()
@@ -62,6 +66,50 @@ class LinkScraber():
         if tab_name:
             self._driver.switch_to.window(self._windows[tab_name])
         return self._driver.page_source
+    async def check_blogs(self):
+        print('Run Check Blogs')
+        timeout = aiohttp.ClientTimeout(total=600)
+        async with aiohttp.ClientSession(timeout=timeout) as session:
+            async with session.get('https://whatstat.ru/channels/science_technology') as resp:
+                soup = bs(await resp.text(), 'lxml')
+                links = [a.find('a').get('href') for a in soup.find_all("td") if a.find('a')]
+
+        async def get(url):
+            try:
+                async with aiohttp.ClientSession(timeout=timeout) as session:
+
+                    async with session.get(url, timeout=timeout) as resp_y:
+                        y_link = bs(await resp_y.text(), 'lxml').find(
+                            attrs={'class': 'channel-header'}).find('a').get('href')
+
+                        async with session.get(y_link, timeout=timeout) as resp_t:
+                            if tg := self._get_tg(await resp_t.text()):
+                                for link in tg:
+                                    if link not in self.links:
+                                        self.links.append(link)
+                                        c_database.upsert(Links, 'href', 'href', href=link)
+            except:
+                f = lambda url: bs(requests.get(url).text, 'lxml').find(
+                    attrs={'class': 'channel-header'}).find('a').get('href')
+                t = await asyncio.get_event_loop().run_in_executor(None, f, url)
+                async with aiohttp.ClientSession(timeout=timeout) as session:
+
+                    async with session.get(t, timeout=timeout) as resp_t:
+                        if tg:=self._get_tg(await resp_t.text()):
+                            for link in tg:
+                                if link not in self.links:
+                                    self.links.append(link)
+                                    c_database.upsert(Links, 'href', 'href', href=link)
+
+
+
+        for count in range(0, len(links), 20):
+            tasks=[]
+            print(f'Проверка блогеров завершена на {count/len(links)*100 if count>0 else 0}%')
+            for link in links[count:count + 20]:
+
+                tasks.append(asyncio.create_task(get('https://whatstat.ru' + link)))
+            await asyncio.gather(*tasks)
 
     def get_threds(self):
         self.load(self.LINK_THREDS)
@@ -73,15 +121,11 @@ class LinkScraber():
                 threds.append(hr)
         return threds
 
-    def _get_tg(self, url):
-
+    def _get_tg(self, text):
         try:
-            text = requests.get(url).text
-
             links = re.findall("https:\/\/t.me[\w@^\/]*",
                                text)
             return links
-
         except BaseException as e:
             print(e)
             return None
@@ -91,7 +135,8 @@ class LinkScraber():
                 for link in tg:
                     if link not in self.links:
                         self.links.append(link)
-                        c_database.d.upsert(Links,'href','href',href=link)
+                        c_database.upsert(Links, 'href', 'href', href=link)
+
 
 
 
@@ -135,8 +180,11 @@ class LinkScraber():
 
 def bootstrap():
     global c_task
-    c_task.add_task(LinkScraber().run,name='LS')
-    c_task.add_task((cli:=client(PHONE)).run_loop(cli.test),name='ToDO')
+    #c_task.add_task(LinkScraber().run,name='Threads')
+    c_task.add_task(LinkScraber().check_blogs,_async=True,name='Blogs')
+    # b = c_database.select(Links, [Links.isVerified == False])
+    # links=[i.href for i in b]
+    # c_task.add_task((cli:=client(PHONE)).run_loop(cli.test,links),name='ToDO')
     # _client.start()
     # if os.path.exists('dump.pickle'):
     #     with open('dump.pickle', 'rb') as handle:
@@ -160,7 +208,7 @@ def main():
 if __name__ == "__main__":
     try:
         bootstrap()
-        main()
+        #main()
 
     except Exception as e:
 
