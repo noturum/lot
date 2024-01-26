@@ -24,7 +24,7 @@ class Selected(Base):
     id = Column(Integer,primary_key=True, autoincrement=True)
     message_id= Column(Integer)
     peer_id = Column(Integer)
-    isforwarded= Column(Boolean)
+    isforwarded= Column(Boolean,default=False)
 class Group(Base):
     __tablename__ = 'group'
     id = Column(Integer, primary_key=True, autoincrement=True)
