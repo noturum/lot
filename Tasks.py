@@ -57,14 +57,17 @@ class TaskController:
         :param kwargs: кварги для периода (передать count,period)
         :return:
         """
-
-        if _async:
+        def ase(func,*args):
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
-            target = (lambda _func, _args: loop.run_until_complete(_func(*_args)))
+            asyncio.get_event_loop().run_until_complete(func(*args))
+        if _async:
+            target=ase
+
+
         else:
             target = func
-        thread = Thread(target=target, args=(func,args) if _async else None, name=name, daemon=False)
+        thread = Thread(target=target, args=(func,*args) if _async else [], name=name, daemon=False)
         if type != PeriodType.SYSTEM:
             period = kwargs.get('period') or 1
             assert period
@@ -74,13 +77,12 @@ class TaskController:
             self._tasks.append(task)
         print(name)
         thread.start()
-        if _async:
-            thread.join()
+
 
     def scheduler(self):
         while True:
             for task in self._tasks:
-                if task['thread']._is_stoped:
+                if task['thread']._is_stopped:
                     match task['type']:
                         case PeriodType.ONCE:
                             self._tasks.pop(self._tasks.index(task))
@@ -98,8 +100,9 @@ class TaskController:
                                 self.create_task(task['func'], task['args'], task['_async'], name=task['name'],
                                                  type=PeriodType.SYSTEM)
                             task['timestamp'] = datetime.datetime.now()
+        time.sleep(self._timeout)
 
 
 if __name__ != "__main__":
     c_task = TaskController()
-    # c_task.create_task(c_task.scheduler, name='SHELDULER', type=PeriodType.SYSTEM)
+

@@ -55,55 +55,36 @@ class Client:
             print('nologin')
             return
         async with self._client as client:
+            sel_messages = [(row.message_id, row.peer_id) for row in c_database.select(Selected)]
             if from_me:
-                async for dialog in client.iter_dialogs():
-                    try:
-                        pin_messages = await client.get_messages(dialog.entity, filter=InputMessagesFilterPinned)
-
-                        messages = await self._client.get_messages(dialog.entity, limit=20)
-
-                        messages += pin_messages
-                    except:
-                        continue
-                    for message in messages:
-                        if len(re.findall(r'(.онкурс)|(.озыгрыш*)|(.частвоват.)',
-                                          message.message if message.message else '')):
-                            uid = message.peer_id.to_dict().get('channel_id') or message.peer_id.to_dict().get(
-                                'user_id')
-                            if not c_database.select(Selected, [Selected.message_id == message.id,
-                                                                Selected.peer_id == uid]):
-                                await client.forward_messages(5288842675, message.id, message.peer_id)
-
-                                c_database.insert(Selected, message_id=message.id, peer_id=uid,
-                                                  isforwarded=True)
+                links = [dialog.entity async for dialog in client.iter_dialogs() if dialog]
             else:
-                links = [link.href for link in c_database.select(Links, [Links.isVerified == True])]
-                for link in links:
-                    try:
-                        pin_messages = await client.get_messages(link, filter=InputMessagesFilterPinned)
-                        messages = await self._client.get_messages(link, limit=20)
-                        messages += pin_messages
-                        for message in messages:
-                            if len(re.findall(r'(.онкурс)|(.озыгрыш*)|(.частвоват.)',
-                                              message.message if message.message else '')):
-                                uid = message.peer_id.to_dict().get('channel_id') or message.peer_id.to_dict().get(
-                                    'user_id')
-                                if not c_database.select(Selected, [Selected.message_id == message.id,
-                                                                    Selected.peer_id == uid]):
-                                    await client.forward_messages(5288842675, message.id, message.peer_id)
+                links = [link.href for link in c_database.select(Links, [Links.isVerified == False])]
+            for link in links:
+                try:
+                    pin_messages = await client.get_messages(link, filter=InputMessagesFilterPinned)
+                    messages = await self._client.get_messages(link, limit=10)
+                    messages += pin_messages
+                    for message in messages:
+                        uid = message.peer_id.to_dict().get('channel_id') or message.peer_id.to_dict().get(
+                            'user_id')
 
-                                    c_database.insert(Selected, message_id=message.id, peer_id=uid,
-                                                      isforwarded=True)
-                    except ValueError or UsernameInvalidError:
-
-                        c_database.delete(Links, [Links.href == link])
-                    except FloodWaitError:
-                        return
-
-                    finally:
-                        time.sleep(5)
+                        if len(re.findall(r'(.онкурс)|(.озыгрыш*)|(.частвоват.)',
+                                          message.message if message.message else '')) and (
+                                message.id, uid) not in sel_messages:
+                            await client.forward_messages(5288842675, message.id, message.peer_id)
+                            c_database.insert(Selected, message_id=message.id, peer_id=uid,
+                                              isforwarded=True)
+                except ValueError or UsernameInvalidError:
+                    print('bad entity')
+                    c_database.delete(Links, [Links.href == link])
+                except FloodWaitError as e:
+                    print(f'Бан по времени - {e}')
+                    return
+                finally:
+                    time.sleep(5)
+                    if not from_me:
                         c_database.update(Links, [Links.href == link], isVerified=True)
-
         print('Check entity stop')
 
     def run_loop(self, func, *args, **kwargs):

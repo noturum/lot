@@ -3,6 +3,8 @@ import logging
 import os
 import re
 import asyncio
+import time
+
 from aiohttp import ClientSession, ClientTimeout
 
 from Tasks import c_task, PeriodType, datetime
@@ -93,43 +95,29 @@ class LinkScraber:
                 tasks.append(asyncio.create_task(func(link)))
             await asyncio.gather(*tasks)
 
-    async def check_blogs(self):
-        print('Run Check Blogs')
-
-
     async def get_from_top(self,url):
         async with ClientSession(timeout=self.timeout) as session:
             async with session.get(url, timeout=self.timeout) as resp_y:
                 y_link = bs(await resp_y.text(), 'lxml').find(
                     attrs={'class': 'channel-header'}).find('a').get('href')
                 async with session.get(y_link, timeout=self.timeout) as resp_t:
-                    if tg := self._get_tg(await resp_t.text()):
-                        for link in tg:
-                            if link not in self.links:
-                                self.links.append(link)
-                                c_database.upsert(Links, 'href', 'href', href=link)
+                    self.get_tg(await resp_t.text())
     async def get_from_thrends(self,url):
-
-
         async with ClientSession(timeout=self.timeout) as session:
             async with session.get(url, timeout=self.timeout) as resp_t:
-                if tg := self._get_tg(await resp_t.text()):
-                    for link in tg:
-                        if link not in self.links:
-                            self.links.append(link)
-                            c_database.upsert(Links, 'href', 'href', href=link)
+                self.get_tg(await resp_t.text())
 
-        #todo: async get  нет вызова зparallelget
-
-    def _get_tg(self, text):
+    def get_tg(self, text):
         try:
             links = re.findall("https:\/\/t.me[\w@^\/]*",
                                text)
-            return links
         except BaseException as e:
             print(e)
-            return None
-
+        else:
+            for link in links:
+                if link not in self.links:
+                    self.links.append(link)
+                    c_database.upsert(Links, 'href', 'href', href=link)
 
 class Notyfier:
     def __init__(self):
@@ -145,27 +133,19 @@ class Notyfier:
 
 
 def bootstrap():
+    c_task.create_task(c_task.scheduler, name='SHELDULER', type=PeriodType.SYSTEM)
     ls=LinkScraber()
-    # c_task.create_task(ls.get_youtube_link,_async=True,name='Thrends',type=PeriodType.FOREVER,period=datetime.timedelta(days=1))
-
-    c_task.create_task(client(PHONE).check_entity,False,_async=True,name='Check_LOT',type=PeriodType.FOREVER, period=datetime.timedelta(days=1))
-
-
-
-
-    # b = c_database.select(Links, [Links.isVerified == False])
-    # links=[i.href for i in b]
-    # c_task.create_task((cli:=client(PHONE)).run_loop(cli.test,links),name='ToDO')
-
-    #c_task.create_task((cli := client(PHONE)).run_loop(cli.forward_pinned_message, ), name='ToDO')
-
-    # _client.start()
-    # if os.path.exists('dump.pickle'):
-    #     with open('dump.pickle', 'rb') as handle:
-    #         chats = pickle.load(handle)
-
-
-
+    c_task.create_task(ls.get_youtube_link,
+                       _async=True,name='Thrends',
+                       type=PeriodType.FOREVER,
+                       period=datetime.timedelta(days=1))
+    c_task.create_task(client(PHONE).check_entity,
+                       True,_async=True,
+                       name='Check_LOT'
+                       ,type=PeriodType.FOREVER,
+                       period=datetime.timedelta(days=1))
+    while True:
+        ...
 
 
 def main():
@@ -181,8 +161,9 @@ def main():
 
 if __name__ == "__main__":
     # try:
+    #     main()
         bootstrap()
-        #main()
+
 
     # except Exception as e:
     #
