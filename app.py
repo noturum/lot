@@ -1,10 +1,12 @@
+
+import logging
+import os
+import re
 import asyncio
-import os, logging, pickle, re, lxml, requests
-import time
+from aiohttp import ClientSession, ClientTimeout
 
-import aiohttp
+from Tasks import c_task, PeriodType, datetime
 
-from Tasks import c_task,PeriodType,datetime
 logging.basicConfig(filename='error.log',
                     format='[%(asctime)s] => %(message)s',
                     level=logging.ERROR)
@@ -14,15 +16,15 @@ load_dotenv()
 PHONE=os.getenv('PHONE')
 assert PHONE
 from telebot import TeleBot
-from telebot.types import InlineKeyboardMarkup, ReplyKeyboardMarkup, InlineKeyboardButton
+from telebot.types import InlineKeyboardMarkup, ReplyKeyboardMarkup
 
 try:
     from DbController import Links, Selected, c_database
     from Telephon import Client as client
 except AssertionError as e:
     logging.error(e)
-    exit(1)
 
+    exit(1)
 from bs4 import BeautifulSoup as bs
 BOT_API = os.getenv('BOT_API')
 assert BOT_API
@@ -44,7 +46,7 @@ class LinkScraber:
         self._driver = self._get_driver(headless)
         self._windows = {}
         self.links = []
-        self.timeout= aiohttp.ClientTimeout(total=600)
+        self.timeout= ClientTimeout(total=600)
 
     def _get_driver(self, headless: bool = False):
         if headless == True:
@@ -68,17 +70,25 @@ class LinkScraber:
         if tab_name:
             self._driver.switch_to.window(self._windows[tab_name])
         return self._driver.page_source
-    async def pop_blogers(self):
-        async with aiohttp.ClientSession(timeout=self.timeout) as session:
+    async def get_youtube_link(self):
+        print('start grab y_link')
+        async with ClientSession(timeout=self.timeout) as session:
             async with session.get('https://whatstat.ru/channels/science_technology') as resp:
                 soup = bs(await resp.text(), 'lxml')
-                liinks = ['https://whatstat.ru' +a.find('a').get('href') for a in soup.find_all("td") if a.find('a')]
+                links = ['https://whatstat.ru' +a.find('a').get('href') for a in soup.find_all("td") if a.find('a')]
+                await self.paralle_get(self.get_from_top,links)
+        self.load(self.LINK_THREDS)
+        soup = bs(self._get_text(), 'lxml')
+        self._driver.close()
+        links = ['https://youtube.com'+a.get('href') for a in soup.find_all('a') if a.get('href')]
+        await self.paralle_get(self.get_from_thrends, links)
+
     @staticmethod
-    async def paralle_get(func,*args):
-        for count in range(0, len(args[0]), 20):
+    async def paralle_get(func,list):
+        for count in range(0, len(list), 20):
             tasks=[]
-            print(f'Проверка {0} завершена на {count/len(args[0])*100 if count>0 else 0}%')
-            for link in args[0][count:count + 20]:
+            print(f'Проверка {0} завершена на {count/len(list)*100 if count>0 else 0}%')
+            for link in list[count:count + 20]:
 
                 tasks.append(asyncio.create_task(func(link)))
             await asyncio.gather(*tasks)
@@ -88,7 +98,7 @@ class LinkScraber:
 
 
     async def get_from_top(self,url):
-        async with aiohttp.ClientSession(timeout=self.timeout) as session:
+        async with ClientSession(timeout=self.timeout) as session:
             async with session.get(url, timeout=self.timeout) as resp_y:
                 y_link = bs(await resp_y.text(), 'lxml').find(
                     attrs={'class': 'channel-header'}).find('a').get('href')
@@ -98,18 +108,16 @@ class LinkScraber:
                             if link not in self.links:
                                 self.links.append(link)
                                 c_database.upsert(Links, 'href', 'href', href=link)
-    async def get_from_thrends(self):
-        self.load(self.LINK_THREDS)
-        soup = bs(self._get_text(), 'lxml')
-        links = soup.find_all('a')
-        for y_link in links:
-            async with aiohttp.ClientSession(timeout=self.timeout) as session:
-                async with session.get(y_link, timeout=self.timeout) as resp_t:
-                    if tg := self._get_tg(await resp_t.text()):
-                        for link in tg:
-                            if link not in self.links:
-                                self.links.append(link)
-                                c_database.upsert(Links, 'href', 'href', href=link)
+    async def get_from_thrends(self,url):
+
+
+        async with ClientSession(timeout=self.timeout) as session:
+            async with session.get(url, timeout=self.timeout) as resp_t:
+                if tg := self._get_tg(await resp_t.text()):
+                    for link in tg:
+                        if link not in self.links:
+                            self.links.append(link)
+                            c_database.upsert(Links, 'href', 'href', href=link)
 
         #todo: async get  нет вызова зparallelget
 
@@ -138,11 +146,9 @@ class Notyfier:
 
 def bootstrap():
     ls=LinkScraber()
-    c_task.create_task(ls.paralle_get(ls.get_from_thrends()),name='Thrends',type=PeriodType.FOREVER,period=datetime.timedelta(days=1))
+    # c_task.create_task(ls.get_youtube_link,_async=True,name='Thrends',type=PeriodType.FOREVER,period=datetime.timedelta(days=1))
 
-    c_task.create_task(LinkScraber().check_blogs,_async=True,name='Blogs',type=PeriodType.FOREVER,period=datetime.timedelta(days=5))
-
-    c_task.create_task(client(PHONE).check_entity,True,_async=True,name='Check_LOT',type=PeriodType.FOREVER, period=datetime.timedelta(days=1))
+    c_task.create_task(client(PHONE).check_entity,False,_async=True,name='Check_LOT',type=PeriodType.FOREVER, period=datetime.timedelta(days=1))
 
 
 
@@ -174,15 +180,15 @@ def main():
 
 
 if __name__ == "__main__":
-    try:
+    # try:
         bootstrap()
         #main()
 
-    except Exception as e:
-
-        bot.stop_polling()
-
-        logging.error(e)
-        with open('dump.pickle', 'wb') as handle:
-            pickle.dump('any', handle)
-        exit(1)
+    # except Exception as e:
+    #
+    #     bot.stop_polling()
+    #
+    #     logging.error(e)
+    #     with open('dump.pickle', 'wb') as handle:
+    #         pickle.dump('any', handle)
+    #     exit(1)

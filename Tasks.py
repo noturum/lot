@@ -61,17 +61,18 @@ class TaskController:
         if _async:
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
-            target = (lambda _func, _args: loop.run_until_complete(_func(*_args)))(func, args)
+            target = (lambda _func, _args: loop.run_until_complete(_func(*_args)))
         else:
             target = func
-        thread = Thread(target=target, args=args, name=name, daemon=False)
+        thread = Thread(target=target, args=(func,args) if _async else None, name=name, daemon=False)
         if type != PeriodType.SYSTEM:
             period = kwargs.get('period') or 1
             assert period
             count = kwargs.get('count')
-            task = Task(thread=thread, name=name, func=func, args=args, _async=_async, type=type, period=period,
+            task = Task(thread=thread, name=name, func=target, args=args, _async=_async, type=type, period=period,
                         timestamp=datetime.datetime.now(), count=count)
             self._tasks.append(task)
+        print(name)
         thread.start()
         if _async:
             thread.join()
@@ -101,4 +102,4 @@ class TaskController:
 
 if __name__ != "__main__":
     c_task = TaskController()
-    c_task.create_task(c_task.scheduler, name='SHELDULER', type=PeriodType.SYSTEM)
+    # c_task.create_task(c_task.scheduler, name='SHELDULER', type=PeriodType.SYSTEM)

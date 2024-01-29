@@ -90,4 +90,4 @@ class Database():
             self.session.commit()
 
 if __name__ !="__main__":
-    c_database= Database()
+    c_database = Database()
