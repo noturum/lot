@@ -1,8 +1,9 @@
 import asyncio
+import threading
 import time
 from typing import TypedDict, Callable
 
-from threading import Thread
+from threading import Thread,Lock
 import datetime
 from enum import Enum
 
@@ -38,8 +39,9 @@ class TaskController:
         return cls.__inst__
 
     def __init__(self):
+
         self._tasks: [Task] = []
-        self._timeout: int = 10 * 60
+        self._timeout: int = 1
 
     @property
     def _break(self):
@@ -67,28 +69,38 @@ class TaskController:
 
         else:
             target = func
-        thread = Thread(target=target, args=(func,*args) if _async else [], name=name, daemon=False)
+        thread = Thread(target=target, name=name)
         if type != PeriodType.SYSTEM:
-            period = kwargs.get('period') or 1
-            assert period
-            count = kwargs.get('count')
+            period = kwargs.get('period') or datetime.timedelta(seconds=self._timeout)
+            count = kwargs.get('count') or 0
+            count-=1
             task = Task(thread=thread, name=name, func=target, args=args, _async=_async, type=type, period=period,
                         timestamp=datetime.datetime.now(), count=count)
             self._tasks.append(task)
-        print(name)
         thread.start()
+
 
 
     def scheduler(self):
         while True:
+            print(threading.main_thread())
+            # print(threading.current_thread())
+            #
+            print(id(self._tasks))
+            print(self._tasks)
+            print(id(self._tasks))
+
             for task in self._tasks:
                 if task['thread']._is_stopped:
+
                     match task['type']:
                         case PeriodType.ONCE:
                             self._tasks.pop(self._tasks.index(task))
                         case PeriodType.COUNT:
+
                             if task['count'] > 0:
-                                if task['timestamp'] + task['period'] >= datetime.datetime.now():
+                                print(1)
+                                if task['timestamp'] + task['period'] <= datetime.datetime.now():
                                     self.create_task(task['func'], task['args'], task['_async'], name=task['name'],
                                                  type=PeriodType.SYSTEM)
                                     task['timestamp']=datetime.datetime.now()
@@ -96,13 +108,23 @@ class TaskController:
                             else:
                                 self._tasks.pop(self._tasks.index(task))
                         case PeriodType.FOREVER:
-                            if task['timestamp'] + task['period'] >= datetime.datetime.now():
+                            if task['timestamp'] + task['period'] <= datetime.datetime.now():
                                 self.create_task(task['func'], task['args'], task['_async'], name=task['name'],
                                                  type=PeriodType.SYSTEM)
                             task['timestamp'] = datetime.datetime.now()
-        time.sleep(self._timeout)
+            time.sleep(self._timeout)
 
 
+def r():
+    with open('tr.txt','a') as f:
+        print(3)
+        f.write('w')
+        f.close()
 if __name__ != "__main__":
     c_task = TaskController()
+else:
+    c_task = TaskController()
+    c_task.create_task(r, name='qw', type=PeriodType.COUNT, period=datetime.timedelta(seconds=1), count=3)
+    c_task.create_task(c_task.scheduler,name="Scheduler",type=PeriodType.SYSTEM)
+
 

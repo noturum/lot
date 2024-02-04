@@ -130,20 +130,22 @@ class Notyfier:
 
 
 
-
+def rr():
+    print(1)
 
 def bootstrap():
     c_task.create_task(c_task.scheduler, name='SHELDULER', type=PeriodType.SYSTEM)
     ls=LinkScraber()
-    c_task.create_task(ls.get_youtube_link,
-                       _async=True,name='Thrends',
-                       type=PeriodType.FOREVER,
-                       period=datetime.timedelta(days=1))
-    c_task.create_task(client(PHONE).check_entity,
-                       True,_async=True,
-                       name='Check_LOT'
-                       ,type=PeriodType.FOREVER,
-                       period=datetime.timedelta(days=1))
+    c_task.create_task(rr,type=PeriodType.COUNT,period=datetime.timedelta(seconds=1),count=3)
+    # c_task.create_task(ls.get_youtube_link,
+    #                    _async=True,name='Thrends',
+    #                    type=PeriodType.FOREVER,
+    #                    period=datetime.timedelta(days=1))
+    # c_task.create_task(client(PHONE).check_entity,
+    #                    True,_async=True,
+    #                    name='Check_LOT'
+    #                    ,type=PeriodType.FOREVER,
+    #                    period=datetime.timedelta(days=1))
     while True:
         ...
 
