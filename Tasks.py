@@ -69,7 +69,7 @@ class TaskController:
 
         else:
             target = func
-        thread = Thread(target=target, name=name)
+        thread = Thread(target=target, name=name,  args=(func,*args) if _async else [])
         if type != PeriodType.SYSTEM:
             period = kwargs.get('period') or datetime.timedelta(seconds=self._timeout)
             count = kwargs.get('count') or 0
@@ -83,23 +83,13 @@ class TaskController:
 
     def scheduler(self):
         while True:
-            print(threading.main_thread())
-            # print(threading.current_thread())
-            #
-            print(id(self._tasks))
-            print(self._tasks)
-            print(id(self._tasks))
-
             for task in self._tasks:
                 if task['thread']._is_stopped:
-
                     match task['type']:
                         case PeriodType.ONCE:
                             self._tasks.pop(self._tasks.index(task))
                         case PeriodType.COUNT:
-
                             if task['count'] > 0:
-                                print(1)
                                 if task['timestamp'] + task['period'] <= datetime.datetime.now():
                                     self.create_task(task['func'], task['args'], task['_async'], name=task['name'],
                                                  type=PeriodType.SYSTEM)

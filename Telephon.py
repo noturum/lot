@@ -1,6 +1,6 @@
 import time
 
-from telethon.errors.rpcerrorlist import UsernameInvalidError, FloodWaitError
+from telethon.errors.rpcerrorlist import UsernameInvalidError, FloodWaitError,UsernameInvalidError
 from dotenv import load_dotenv
 from telethon.tl.types import InputMessagesFilterPinned
 import re, os, asyncio
@@ -59,7 +59,7 @@ class Client:
             if from_me:
                 links = [dialog.entity async for dialog in client.iter_dialogs() if dialog]
             else:
-                links = [link.href for link in c_database.select(Links, [Links.isVerified == False])]
+                links = [link.href for link in c_database.select(Links)]
             for link in links:
                 try:
                     pin_messages = await client.get_messages(link, filter=InputMessagesFilterPinned)
@@ -77,14 +77,15 @@ class Client:
                                               isforwarded=True)
                 except ValueError or UsernameInvalidError:
                     print('bad entity')
-                    c_database.delete(Links, [Links.href == link])
+                    #c_database.delete(Links, [Links.href == link])
                 except FloodWaitError as e:
                     print(f'Бан по времени - {e}')
                     return
+
                 finally:
-                    time.sleep(5)
-                    if not from_me:
-                        c_database.update(Links, [Links.href == link], isVerified=True)
+                    time.sleep(2)
+                    # if not from_me:
+                    #     c_database.update(Links, [Links.href == link], isVerified=True)
         print('Check entity stop')
 
     def run_loop(self, func, *args, **kwargs):

@@ -48,7 +48,7 @@ class LinkScraber:
         self._driver = self._get_driver(headless)
         self._windows = {}
         self.links = []
-        self.timeout= ClientTimeout(total=600)
+        self.timeout= ClientTimeout(total=6)
 
     def _get_driver(self, headless: bool = False):
         if headless == True:
@@ -96,18 +96,26 @@ class LinkScraber:
             await asyncio.gather(*tasks)
 
     async def get_from_top(self,url):
-        async with ClientSession(timeout=self.timeout) as session:
-            async with session.get(url, timeout=self.timeout) as resp_y:
-                y_link = bs(await resp_y.text(), 'lxml').find(
-                    attrs={'class': 'channel-header'}).find('a').get('href')
-                async with session.get(y_link, timeout=self.timeout) as resp_t:
-                    self.get_tg(await resp_t.text())
+        try:
+            async with ClientSession(timeout=self.timeout) as session:
+                async with session.get(url, timeout=self.timeout) as resp_y:
+                    y_link = bs(await resp_y.text(), 'lxml').find(
+                        attrs={'class': 'channel-header'}).find('a').get('href')
+
+                    async with session.get(y_link, timeout=self.timeout) as resp_t:
+                        self.get_tg(await resp_t.text())
+        except asyncio.exceptions.TimeoutError:
+            return
     async def get_from_thrends(self,url):
-        async with ClientSession(timeout=self.timeout) as session:
-            async with session.get(url, timeout=self.timeout) as resp_t:
-                self.get_tg(await resp_t.text())
+        try:
+            async with ClientSession(timeout=self.timeout) as session:
+                async with session.get(url, timeout=self.timeout) as resp_t:
+                    self.get_tg(await resp_t.text())
+        except asyncio.exceptions.TimeoutError:
+            return
 
     def get_tg(self, text):
+
         try:
             links = re.findall("https:\/\/t.me[\w@^\/]*",
                                text)
@@ -130,22 +138,19 @@ class Notyfier:
 
 
 
-def rr():
-    print(1)
 
 def bootstrap():
     c_task.create_task(c_task.scheduler, name='SHELDULER', type=PeriodType.SYSTEM)
     ls=LinkScraber()
-    c_task.create_task(rr,type=PeriodType.COUNT,period=datetime.timedelta(seconds=1),count=3)
     # c_task.create_task(ls.get_youtube_link,
     #                    _async=True,name='Thrends',
     #                    type=PeriodType.FOREVER,
     #                    period=datetime.timedelta(days=1))
-    # c_task.create_task(client(PHONE).check_entity,
-    #                    True,_async=True,
-    #                    name='Check_LOT'
-    #                    ,type=PeriodType.FOREVER,
-    #                    period=datetime.timedelta(days=1))
+    c_task.create_task(client(PHONE).check_entity,
+                       True,_async=True,
+                       name='Check_LOT'
+                       ,type=PeriodType.FOREVER,
+                       period=datetime.timedelta(days=1))
     while True:
         ...
 
