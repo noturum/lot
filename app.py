@@ -147,7 +147,7 @@ def bootstrap():
     #                    type=PeriodType.FOREVER,
     #                    period=datetime.timedelta(days=1))
     c_task.create_task(client(PHONE).check_entity,
-                       True,_async=True,
+                       True ,_async=True,
                        name='Check_LOT'
                        ,type=PeriodType.FOREVER,
                        period=datetime.timedelta(days=1))
