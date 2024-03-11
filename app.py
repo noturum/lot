@@ -4,9 +4,8 @@ import os
 import re
 import asyncio
 import time
-
 from aiohttp import ClientSession, ClientTimeout
-
+from aiohttp.client_exceptions import ClientConnectorError
 from Tasks import c_task, PeriodType, datetime
 
 logging.basicConfig(filename='error.log',
@@ -48,7 +47,7 @@ class LinkScraber:
         self._driver = self._get_driver(headless)
         self._windows = {}
         self.links = []
-        self.timeout= ClientTimeout(total=6)
+        self.timeout= ClientTimeout(total=600)
 
     def _get_driver(self, headless: bool = False):
         if headless == True:
@@ -76,40 +75,41 @@ class LinkScraber:
         print('start grab y_link')
         async with ClientSession(timeout=self.timeout) as session:
             async with session.get('https://whatstat.ru/channels/science_technology') as resp:
-                soup = bs(await resp.text(), 'lxml')
+                soup = bs(await resp.text(), 'html.parser')
                 links = ['https://whatstat.ru' +a.find('a').get('href') for a in soup.find_all("td") if a.find('a')]
                 await self.paralle_get(self.get_from_top,links)
         self.load(self.LINK_THREDS)
-        soup = bs(self._get_text(), 'lxml')
+        soup = bs(self._get_text(), 'html.parser')
         self._driver.close()
         links = ['https://youtube.com'+a.get('href') for a in soup.find_all('a') if a.get('href')]
         await self.paralle_get(self.get_from_thrends, links)
 
     @staticmethod
-    async def paralle_get(func,list):
-        for count in range(0, len(list), 20):
+    async def paralle_get(func,links):
+        for count in range(0, len(links), 10):
             tasks=[]
-            print(f'Проверка {0} завершена на {count/len(list)*100 if count>0 else 0}%')
-            for link in list[count:count + 20]:
-
+            print(f'Проверка {0} завершена на {int(count/len(links)*100) if count>0 else 0}%')
+            for link in links[count:count + 10]:
                 tasks.append(asyncio.create_task(func(link)))
             await asyncio.gather(*tasks)
 
     async def get_from_top(self,url):
+
         try:
             async with ClientSession(timeout=self.timeout) as session:
-                async with session.get(url, timeout=self.timeout) as resp_y:
-                    y_link = bs(await resp_y.text(), 'lxml').find(
+                async with session.get(url) as resp_y:
+                    y_link = bs(await resp_y.text(), 'html.parser').find(
                         attrs={'class': 'channel-header'}).find('a').get('href')
+                    assert y_link
+                async with session.get(y_link,timeout=self.timeout) as resp_t:
+                    self.get_tg(await resp_t.text())
+        except (asyncio.exceptions.TimeoutError,AssertionError,ClientConnectorError):
 
-                    async with session.get(y_link, timeout=self.timeout) as resp_t:
-                        self.get_tg(await resp_t.text())
-        except asyncio.exceptions.TimeoutError:
             return
     async def get_from_thrends(self,url):
         try:
             async with ClientSession(timeout=self.timeout) as session:
-                async with session.get(url, timeout=self.timeout) as resp_t:
+                async with session.get(url) as resp_t:
                     self.get_tg(await resp_t.text())
         except asyncio.exceptions.TimeoutError:
             return
@@ -142,15 +142,15 @@ class Notyfier:
 def bootstrap():
     c_task.create_task(c_task.scheduler, name='SHELDULER', type=PeriodType.SYSTEM)
     ls=LinkScraber()
-    # c_task.create_task(ls.get_youtube_link,
-    #                    _async=True,name='Thrends',
-    #                    type=PeriodType.FOREVER,
-    #                    period=datetime.timedelta(days=1))
-    c_task.create_task(client(PHONE).check_entity,
-                       True ,_async=True,
-                       name='Check_LOT'
-                       ,type=PeriodType.FOREVER,
+    c_task.create_task(ls.get_youtube_link,
+                       _async=True,name='Thrends',
+                       type=PeriodType.FOREVER,
                        period=datetime.timedelta(days=1))
+    # c_task.create_task(client(PHONE).check_entity,
+    #                    True ,_async=True,
+    #                    name='Check_LOT'
+    #                    ,type=PeriodType.FOREVER,
+    #                    period=datetime.timedelta(days=1))
     while True:
         ...
 
