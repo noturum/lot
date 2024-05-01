@@ -62,6 +62,7 @@ class Client:
                 links = [link.href for link in c_database.select(Links)]
             for link in links:
                 try:
+
                     pin_messages = await client.get_messages(link, filter=InputMessagesFilterPinned)
                     messages = await self._client.get_messages(link, limit=10)
                     messages += pin_messages
@@ -75,7 +76,7 @@ class Client:
                             await client.forward_messages(5288842675, message.id, message.peer_id)
                             c_database.insert(Selected, message_id=message.id, peer_id=uid,
                                               isforwarded=True)
-                except ValueError or UsernameInvalidError:
+                except (ValueError, UsernameInvalidError):
                     print('bad entity')
                     #c_database.delete(Links, [Links.href == link])
                 except FloodWaitError as e:

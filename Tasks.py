@@ -1,10 +1,8 @@
 import asyncio
-import threading
 import time
-from typing import TypedDict, Callable
-
-from threading import Thread,Lock
-import datetime
+from inspect import iscoroutinefunction as is_async
+from threading import Thread
+from datetime import datetime, timedelta
 from enum import Enum
 
 
@@ -15,19 +13,33 @@ class PeriodType(Enum):
     SYSTEM = 3
 
 
-class Task(TypedDict):
-    thread: Thread | None
-    func: Callable
-    args: list
-    name: str
-    _async: bool
+class Task:
+    def __init__(self, period_type: PeriodType,
+                 func, func_args=(),
+                 name=None, count=1,
+                 period: timedelta = timedelta(seconds=1)):
+
+        self.period_type = period_type
+        self.func = func
+        self.args = func_args
+        self.name = name
+        self.period = period
+        self.count = count
+        self.timestamp = None
+        self.thread = None
+
+    def _add_loop(self, func, args):
+        with asyncio.Runner(debug=False) as r:
+            r.run(func(*args))
 
 
-class TaskTime(Task, total=False):
-    type: PeriodType
-    period: datetime.datetime
-    timestamp: datetime.datetime
-    count: int
+    def run(self):
+        self.timestamp = datetime.now()
+        if is_async(self.func):
+            thread = Thread(target=self._add_loop, args=(self.func, self.args), daemon=True)
+        else:
+            thread = Thread(target=self.func, args=self.args, daemon=True)
+        thread.start()
 
 
 class TaskController:
@@ -40,7 +52,7 @@ class TaskController:
 
     def __init__(self):
 
-        self._tasks: [Task] = []
+        self._tasks: list[Task] = []
         self._timeout: int = 1
 
     @property
@@ -48,73 +60,41 @@ class TaskController:
         time.sleep(self._timeout)
         return True
 
-    def create_task(self, func, *args, _async: bool = False, name: str | None = None,
-                    type: PeriodType = PeriodType.ONCE, **kwargs):
-        """
-        Добавляет таску в отдельный паток
-        :param func: ссылка на функциюю
-        :param args: аргументы функции (если есть)
-        :param _async: если функция ассинхроная
-        :param name: имя таски
-        :param kwargs: кварги для периода (передать count,period)
-        :return:
-        """
-        def ase(func,*args):
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            asyncio.get_event_loop().run_until_complete(func(*args))
-        if _async:
-            target=ase
-
-
-        else:
-            target = func
-        thread = Thread(target=target, name=name,  args=(func,*args) if _async else [])
-        if type != PeriodType.SYSTEM:
-            period = kwargs.get('period') or datetime.timedelta(seconds=self._timeout)
-            count = kwargs.get('count') or 0
-            count-=1
-            task = Task(thread=thread, name=name, func=target, args=args, _async=_async, type=type, period=period,
-                        timestamp=datetime.datetime.now(), count=count)
-            self._tasks.append(task)
-        thread.start()
-
-
+    def create(self, task: Task):
+        self._tasks.append(task)
+        task.run()
 
     def scheduler(self):
         while True:
             for task in self._tasks:
-                if task['thread']._is_stopped:
-                    match task['type']:
-                        case PeriodType.ONCE:
-                            self._tasks.pop(self._tasks.index(task))
-                        case PeriodType.COUNT:
-                            if task['count'] > 0:
-                                if task['timestamp'] + task['period'] <= datetime.datetime.now():
-                                    self.create_task(task['func'], task['args'], task['_async'], name=task['name'],
-                                                 type=PeriodType.SYSTEM)
-                                    task['timestamp']=datetime.datetime.now()
-                                task['count'] -= 1
-                            else:
+                match task.period_type:
+                    case PeriodType.ONCE:
+                        self._tasks.pop(self._tasks.index(task))
+                    case PeriodType.COUNT:
+                        if task.count > 0:
+                            if (datetime.now() - task.timestamp) >= task.period:
+                                task.count -= 1
                                 self._tasks.pop(self._tasks.index(task))
-                        case PeriodType.FOREVER:
-                            if task['timestamp'] + task['period'] <= datetime.datetime.now():
-                                self.create_task(task['func'], task['args'], task['_async'], name=task['name'],
-                                                 type=PeriodType.SYSTEM)
-                            task['timestamp'] = datetime.datetime.now()
-            time.sleep(self._timeout)
+                                self.create(task)
+                        else:
+                            self._tasks.pop(self._tasks.index(task))
+                    case PeriodType.FOREVER:
+                        if (datetime.now() - task.timestamp) >= task.period:
+                            self._tasks.pop(self._tasks.index(task))
+                            self.create(task)
+                        task.timestamp = datetime.now()
+                time.sleep(self._timeout)
 
 
-def r():
-    with open('tr.txt','a') as f:
-        print(3)
-        f.write('w')
-        f.close()
-if __name__ != "__main__":
+
+
+if __name__ == "__main__":
     c_task = TaskController()
+    task = Task(PeriodType.SYSTEM, c_task.scheduler, name='SH')
+    c_task.create(task)
+    while 1:
+        ...
 else:
     c_task = TaskController()
-    c_task.create_task(r, name='qw', type=PeriodType.COUNT, period=datetime.timedelta(seconds=1), count=3)
-    c_task.create_task(c_task.scheduler,name="Scheduler",type=PeriodType.SYSTEM)
-
-
+    task = Task(PeriodType.SYSTEM, c_task.scheduler, name='SH')
+    c_task.create(task)

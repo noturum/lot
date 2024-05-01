@@ -1,0 +1,10 @@
+
++79130645377.session
+.env
+.idea/vcs.xml
+__pycache__/DbController.cpython-310.pyc
+data.db
+error.log
+test.py
+test.py
+*.pyc
